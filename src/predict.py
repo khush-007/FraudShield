@@ -177,7 +177,10 @@ def predict_fraud(
     threshold=0.5
 ):
 
-    # Create transaction dataframe
+    # =====================================================
+    # CREATE TRANSACTION DATAFRAME
+    # =====================================================
+
     transaction = pd.DataFrame([{
         "step": step,
         "type": transaction_type,
@@ -188,10 +191,13 @@ def predict_fraud(
         "newbalanceDest": newbalanceDest
     }])
 
-    # Feature engineering
+
+    # =====================================================
+    # FEATURE ENGINEERING
+    # =====================================================
+
     transaction = create_features(transaction)
 
-    # Select exact features used during training
     feature_columns = [
         "step",
         "type",
@@ -209,26 +215,86 @@ def predict_fraud(
 
     transaction = transaction[feature_columns]
 
-    # Preprocessing
+
+    # =====================================================
+    # PREPROCESSING
+    # =====================================================
+
     transaction_processed = preprocessor.transform(
         transaction
     )
+
 
     # =====================================================
     # ML FRAUD PROBABILITY
     # =====================================================
 
-    fraud_probability = model.predict_proba(
-        transaction_processed
-    )[0][1]
+    ml_fraud_probability = float(
+        model.predict_proba(
+            transaction_processed
+        )[0][1]
+    )
 
-    # Final fraud prediction
+
+    # =====================================================
+    # RULE-BASED RISK SCORE
+    # =====================================================
+
+    rule_score = 0.0
+
+    # Very high transaction amount
+    if amount >= 500000:
+        rule_score += 0.25
+
+    # High transaction amount
+    elif amount >= 100000:
+        rule_score += 0.10
+
+    # Sender account becomes empty
+    if oldbalanceOrg > 0 and newbalanceOrig == 0:
+        rule_score += 0.25
+
+    # Transaction uses more than 90% of balance
+    if oldbalanceOrg > 0:
+
+        amount_ratio = amount / oldbalanceOrg
+
+        if amount_ratio >= 0.90:
+            rule_score += 0.20
+
+    # Receiver had zero balance before transaction
+    if oldbalanceDest == 0:
+        rule_score += 0.15
+
+    # Higher-risk transaction type
+    if transaction_type in ["TRANSFER", "CASH_OUT"]:
+        rule_score += 0.15
+
+    # Maximum rule score = 1.0
+    rule_score = min(rule_score, 1.0)
+
+
+    # =====================================================
+    # FINAL HYBRID FRAUD SCORE
+    # =====================================================
+
+    fraud_probability = max(
+        ml_fraud_probability,
+        rule_score
+    )
+
+
+    # =====================================================
+    # FINAL PREDICTION
+    # =====================================================
+
     prediction = int(
         fraud_probability >= threshold
     )
 
+
     # =====================================================
-    # RISK LEVEL
+    # RISK LEVEL AND DECISION
     # =====================================================
 
     if fraud_probability >= 0.90:
@@ -236,12 +302,12 @@ def predict_fraud(
         risk_level = "CRITICAL"
         decision = "BLOCK TRANSACTION"
 
-    elif fraud_probability >= threshold:
+    elif fraud_probability >= 0.50:
 
         risk_level = "HIGH"
         decision = "FLAG FOR REVIEW"
 
-    elif fraud_probability >= 0.10:
+    elif fraud_probability >= 0.25:
 
         risk_level = "MEDIUM"
         decision = "MONITOR TRANSACTION"
@@ -250,6 +316,7 @@ def predict_fraud(
 
         risk_level = "LOW"
         decision = "ALLOW TRANSACTION"
+
 
     # =====================================================
     # RISK FACTORS
@@ -264,11 +331,13 @@ def predict_fraud(
         fraud_probability=fraud_probability
     )
 
+
     # =====================================================
     # RETURN RESULTS
     # =====================================================
 
     return {
+
         "fraud_probability": round(
             float(fraud_probability),
             6
@@ -279,7 +348,6 @@ def predict_fraud(
             2
         ),
 
-        # Fraud score for frontend display
         "fraud_score": round(
             float(fraud_probability * 100),
             2
@@ -295,5 +363,16 @@ def predict_fraud(
 
         "risk_factors": risk_factors,
 
-        "threshold_used": threshold
+        "threshold_used": threshold,
+
+        # Optional: useful for debugging
+        "ml_fraud_probability": round(
+            ml_fraud_probability,
+            6
+        ),
+
+        "rule_score": round(
+            rule_score,
+            6
+        )
     }
