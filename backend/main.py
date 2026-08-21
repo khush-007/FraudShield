@@ -1,11 +1,14 @@
+import os
+
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from backend.database.database import Base, engine
 from backend.database import models
+
 from backend.api.transactions import router as transactions_router
 from backend.api.alerts import router as alerts_router
 from backend.api.analytics import router as analytics_router
-from fastapi.middleware.cors import CORSMiddleware
 
 
 # ============================================================
@@ -25,16 +28,26 @@ app = FastAPI(
     version="1.0.0"
 )
 
+
 # ============================================================
 # CORS CONFIGURATION
 # ============================================================
 
+allowed_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+# Add deployed frontend URL from environment variable
+frontend_url = os.getenv("FRONTEND_URL")
+
+if frontend_url:
+    allowed_origins.append(frontend_url)
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173"
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -74,4 +87,3 @@ def health_check():
         "status": "healthy",
         "service": "FraudShield Backend"
     }
-
