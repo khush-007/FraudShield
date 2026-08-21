@@ -1,16 +1,23 @@
 # Virtual environment
 .venv/
+venv/
 
 # Python cache
 __pycache__/
 *.pyc
 
-# Jupyter checkpoints
-.ipynb_checkpoints/
-
-# Environment variables / secrets
+# Environment variables
 .env
 
-# OS files
-.DS_Store
-Thumbs.db
+# Database
+*.db
+
+# Large datasets
+data/raw/
+*.csv
+
+# Frontend dependencies
+frontend/node_modules/
+
+# Build files
+frontend/dist/
